@@ -509,6 +509,38 @@
     anggota_pramuka: 'Anggota Pramuka'
   };
 
+  const GAS_URL = 'https://script.google.com/macros/s/AKfycbwyB5H_VJWJE0XXiu52ZbgUU8AAkC0DPFhF1-n57XeSm-ld0qYilQaJ8fwPmhtS9u_KTA/exec';
+
+  async function muatData(){
+    try{
+      const res = await fetch(GAS_URL);
+      const rows = await res.json();
+      data = rows.map(r => ({
+        id: r.ID,
+        dicatatOlehId: r.DicatatOlehId,
+        dicatatNama: r.DicatatNama,
+        barang: r.Barang,
+        jumlah: r.Jumlah,
+        tanggal: r.TanggalPinjam,
+        tanggalKembali: r.TanggalKembali,
+        status: r.Status,
+        foto: null
+      }));
+      render();
+    }catch(err){
+      console.error('Gagal memuat data dari server:', err);
+    }
+  }
+
+  async function kirimAksi(payload){
+    try{
+      await fetch(GAS_URL, { method:'POST', body: JSON.stringify(payload) });
+    }catch(err){
+      console.error('Gagal mengirim data ke server:', err);
+      alert('Gagal menyimpan ke server. Periksa koneksi internet lalu coba lagi.');
+    }
+  }
+
   let users = [
     { id:1, username:'ketua', password:'ketua123', nama:'Ketua Sarpras', role:'ketua_sarpras', noAnggota:'001', kontak:'-' },
     { id:2, username:'sarpras1', password:'sarpras123', nama:'Anggota Sarpras 1', role:'anggota_sarpras', noAnggota:'002', kontak:'-' },
@@ -563,7 +595,7 @@
 
     isiFormProfil();
     if(isAdmin(currentUser)) renderAnggota();
-    render();
+    muatData();
     gantiTab('peminjaman');
   }
 
@@ -779,16 +811,29 @@
     if(!barang || !tanggal || !tanggalKembali) return;
 
     function simpan(fotoDataUrl){
-      data.push({
-        id: nextId++,
+      const item = {
+        id: Date.now(),
         dicatatOlehId: currentUser.id,
         dicatatNama: currentUser.nama,
         barang, jumlah, tanggal, tanggalKembali,
         status: 'Dipinjam',
         foto: fotoDataUrl || null
-      });
+      };
+      data.push(item);
       render();
       resetForm();
+
+      kirimAksi({
+        aksi: 'tambah',
+        id: item.id,
+        dicatatOlehId: item.dicatatOlehId,
+        dicatatNama: item.dicatatNama,
+        barang: item.barang,
+        jumlah: item.jumlah,
+        tanggal: item.tanggal,
+        tanggalKembali: item.tanggalKembali,
+        status: item.status
+      });
     }
 
     if(file){
@@ -814,10 +859,12 @@
     if(e.target.classList.contains('hapus')){
       data = data.filter(x => x.id !== id);
       render();
+      kirimAksi({ aksi:'hapus', id: id });
     }
     if(e.target.classList.contains('toggle')){
       item.status = item.status === 'Dipinjam' ? 'Dikembalikan' : 'Dipinjam';
       render();
+      kirimAksi({ aksi:'toggle', id: id, status: item.status });
     }
   });
 
