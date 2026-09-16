@@ -262,7 +262,8 @@
         <label for="loginPassword">Kata Sandi</label>
         <input type="password" id="loginPassword" placeholder="Masukkan kata sandi" required>
       </div>
-      <button type="submit" class="primary" style="width:100%;">Masuk</button>
+      <button type="submit" class="primary" id="loginSubmitBtn" style="width:100%;">Masuk</button>
+      <div id="loginLoadingNote" class="catatan-kecil" style="text-align:center;margin-top:10px;">Memuat daftar anggota&hellip;</div>
     </form>
   </div>
 
@@ -513,7 +514,7 @@
 
   async function muatData(){
     try{
-      const res = await fetch(GAS_URL);
+      const res = await fetch(GAS_URL + '?jenis=peminjaman');
       const rows = await res.json();
       data = rows.map(r => ({
         id: r.ID,
@@ -542,15 +543,39 @@
   }
 
   let users = [
-    { id:1, username:'ketua', password:'ketua123', nama:'Ketua Sarpras', role:'ketua_sarpras', noAnggota:'001', kontak:'-' },
-    { id:2, username:'sarpras1', password:'sarpras123', nama:'Anggota Sarpras 1', role:'anggota_sarpras', noAnggota:'002', kontak:'-' },
-    { id:3, username:'pramuka1', password:'pramuka123', nama:'Anggota Pramuka 1', role:'anggota_pramuka', noAnggota:'003', kontak:'-' }
+    { id:1, username:'ketua', password:'ketua123', nama:'Ketua Sarpras', role:'ketua_sarpras', noAnggota:'001', kontak:'-' }
   ];
-  let nextUserId = 4;
   let currentUser = null;
 
   let data = [];
-  let nextId = 1;
+
+  async function muatUsers(){
+    const loginBtn = document.getElementById('loginSubmitBtn');
+    const loginNote = document.getElementById('loginLoadingNote');
+    try{
+      loginBtn.disabled = true;
+      loginNote.classList.remove('hidden');
+      const res = await fetch(GAS_URL + '?jenis=anggota');
+      const rows = await res.json();
+      if(rows.length){
+        users = rows.map(r => ({
+          id: r.ID,
+          nama: r.Nama,
+          username: r.Username,
+          password: r.Password,
+          role: r.Role,
+          noAnggota: r.NoAnggota,
+          kontak: r.Kontak
+        }));
+      }
+    }catch(err){
+      console.error('Gagal memuat daftar anggota, memakai akun cadangan:', err);
+    }finally{
+      loginBtn.disabled = false;
+      loginNote.classList.add('hidden');
+    }
+  }
+  muatUsers();
 
   function isAdmin(u){ return !!u && u.role === 'ketua_sarpras'; }
   function isSarpras(u){ return !!u && (u.role === 'ketua_sarpras' || u.role === 'anggota_sarpras'); }
@@ -684,13 +709,26 @@
         u.nama = nama; u.username = username; u.role = role;
         u.noAnggota = noAnggota; u.kontak = kontak;
         if(password) u.password = password;
+
+        kirimAksi({
+          jenis: 'anggota', aksi: 'edit', id: u.id,
+          nama: u.nama, username: u.username, password: password || '',
+          role: u.role, noAnggota: u.noAnggota, kontak: u.kontak
+        });
       }
     } else {
       if(!password){
         alert('Kata sandi wajib diisi untuk anggota baru.');
         return;
       }
-      users.push({ id: nextUserId++, username, password, nama, role, noAnggota, kontak });
+      const anggotaBaru = { id: Date.now(), username, password, nama, role, noAnggota, kontak };
+      users.push(anggotaBaru);
+
+      kirimAksi({
+        jenis: 'anggota', aksi: 'tambah', id: anggotaBaru.id,
+        nama: anggotaBaru.nama, username: anggotaBaru.username, password: anggotaBaru.password,
+        role: anggotaBaru.role, noAnggota: anggotaBaru.noAnggota, kontak: anggotaBaru.kontak
+      });
     }
 
     resetFormAnggota();
@@ -736,6 +774,7 @@
         users = users.filter(x => String(x.id) !== id);
         renderAnggota();
         render();
+        kirimAksi({ jenis:'anggota', aksi:'hapus', id: id });
       }
     }
   });
@@ -824,6 +863,7 @@
       resetForm();
 
       kirimAksi({
+        jenis: 'peminjaman',
         aksi: 'tambah',
         id: item.id,
         dicatatOlehId: item.dicatatOlehId,
@@ -859,12 +899,12 @@
     if(e.target.classList.contains('hapus')){
       data = data.filter(x => x.id !== id);
       render();
-      kirimAksi({ aksi:'hapus', id: id });
+      kirimAksi({ jenis:'peminjaman', aksi:'hapus', id: id });
     }
     if(e.target.classList.contains('toggle')){
       item.status = item.status === 'Dipinjam' ? 'Dikembalikan' : 'Dipinjam';
       render();
-      kirimAksi({ aksi:'toggle', id: id, status: item.status });
+      kirimAksi({ jenis:'peminjaman', aksi:'toggle', id: id, status: item.status });
     }
   });
 
